@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>黑体辐射强度 — 3D 可视化</title>
+
+  <!-- Plotly.js 离线版本（CDN，可替换为本地文件） -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+  <style>
+    /* ===== 全局重置 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== 顶部标题栏 ===== */
+    header {
+      background: linear-gradient(135deg, #161b22 0%, #1f2937 100%);
+      border-bottom: 1px solid #30363d;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    header .icon {
+      width: 42px; height: 42px;
+      background: radial-gradient(circle at 40% 40%, #ff9f43, #ee5a24);
+      border-radius: 50%;
+      box-shadow: 0 0 18px #ff9f4388;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: linear-gradient(90deg, #ffd700, #ff6b35);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header p {
+      font-size: 0.82rem;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+
+    /* ===== 主体布局 ===== */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* ===== 左侧控制面板 ===== */
+    aside {
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      padding: 24px 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .panel-section {
+      background: #1c2128;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .panel-section h3 {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #58a6ff;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .panel-section h3::before {
+      content: '';
+      display: inline-block;
+      width: 3px; height: 14px;
+      background: #58a6ff;
+      border-radius: 2px;
+    }
+
+    /* 滑块组 */
+    .slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .slider-item label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.83rem;
+      color: #c9d1d9;
+      margin-bottom: 5px;
+    }
+    .slider-item label span {
+      color: #ffd700;
+      font-weight: 600;
+      min-width: 60px;
+      text-align: right;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 3px;
+      background: #30363d;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ffd700, #ff6b35);
+      box-shadow: 0 0 6px #ffd70066;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      background: linear-gradient(to right, #58a6ff, #ffd700);
+      height: 5px;
+      border-radius: 3px;
+    }
+
+    /* 单选按钮组 */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .radio-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      color: #c9d1d9;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .radio-item:hover { background: #21262d; }
+    .radio-item input[type="radio"] { accent-color: #ffd700; }
+    .radio-item.active { background: #1f3a5f; color: #58a6ff; }
+
+    /* 色彩选择 */
+    .colorscale-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .cs-btn {
+      padding: 6px 4px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #21262d;
+      color: #c9d1d9;
+      font-size: 0.75rem;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .cs-btn:hover { border-color: #58a6ff; color: #58a6ff; }
+    .cs-btn.active { border-color: #ffd700; background: #1f3a5f; color: #ffd700; }
+
+    /* 按钮 */
+    .btn-primary {
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #1f6feb, #388bfd);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    /* 信息卡片 */
+    .info-card {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 0.78rem;
+      color: #8b949e;
+      line-height: 1.7;
+    }
+    .info-card strong { color: #e6edf3; }
+    .info-card .formula {
+      font-family: 'Courier New', monospace;
+      background: #161b22;
+      border-left: 3px solid #58a6ff;
+      padding: 8px 10px;
+      margin-top: 8px;
+      border-radius: 0 6px 6px 0;
+      color: #79c0ff;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    /* 峰值信息 */
+    .peak-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .peak-card {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .peak-card .val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffd700;
+    }
+    .peak-card .lbl {
+      font-size: 0.72rem;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+
+    /* ===== 右侧图表区 ===== */
+    #chart-container {
+      position: relative;
+      background: #0d1117;
+      display: flex;
+      flex-direction: column;
+    }
+    #plot {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* 图表顶部工具栏 */
+    .chart-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+    .chart-toolbar .chart-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e6edf3;
+    }
+    .chart-toolbar .chart-subtitle {
+      font-size: 0.75rem;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+    .view-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .view-tab {
+      padding: 5px 14px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: transparent;
+      color: #8b949e;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { border-color: #58a6ff; color: #58a6ff; }
+    .view-tab.active { background: #1f3a5f; border-color: #58a6ff; color: #58a6ff; }
+
+    /* 底部状态栏 */
+    footer {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 8px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: #8b949e;
+      flex-shrink: 0;
+    }
+    footer .status { display: flex; align-items: center; gap: 6px; }
+    footer .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #3fb950;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ===== 响应式 ===== */
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      aside { border-right: none; border-bottom: 1px solid #30363d; max-height: 340px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== 顶部标题 ===== -->
+<header>
+  <div class="icon"></div>
+  <div>
+    <h1>黑体辐射强度 3D 可视化</h1>
+    <p>基于普朗克辐射定律 · Planck's Law · 离线交互式图表</p>
+  </div>
+</header>
+
+<!-- ===== 主体 ===== -->
+<main>
+
+  <!-- 左侧控制面板 -->
+  <aside>
+
+    <!-- 温度范围 -->
+    <div class="panel-section">
+      <h3>温度范围</h3>
+      <div class="slider-group">
+        <div class="slider-item">
+          <label>最低温度 T<sub>min</sub> <span id="tmin-val">500 K</span></label>
+          <input type="range" id="tmin" min="100" max="9000" step="100" value="500" />
+        </div>
+        <div class="slider-item">
+          <label>最高温度 T<sub>max</sub> <span id="tmax-val">6000 K</span></label>
+          <input type="range" id="tmax" min="500" max="20000" step="100" value="6000" />
+        </div>
+        <div class="slider-item">
+          <label>温度步数 <span id="tstep-val">12</span></label>
+          <input type="range" id="tstep" min="5" max="50" step="1" value="12" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 波长范围 -->
+    <div class="panel-section">
+      <h3>波长范围</h3>
+      <div class="slider-group">
+        <div class="slider-item">
+          <label>最短波长 λ<sub>min</sub> <span id="lmin-val">100 nm</span></label>
+          <input type="range" id="lmin" min="10" max="2000" step="10" value="100" />
+        </div>
+        <div class="slider-item">
+          <label>最长波长 λ<sub>max</sub> <span id="lmax-val">3000 nm</span></label>
+          <input type="range" id="lmax" min="500" max="50000" step="100" value="3000" />
+        </div>
+        <div class="slider-item">
+          <label>波长步数 <span id="lstep-val">120</span></label>
+          <input type="range" id="lstep" min="20" max="300" step="10" value="120" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 纵轴 -->
+    <div class="panel-section">
+      <h3>纵轴模式</h3>
+      <div class="radio-group">
+        <label class="radio-item active" id="lbl-linear">
+          <input type="radio" name="yaxis" value="linear" checked /> 线性坐标
+        </label>
+        <label class="radio-item" id="lbl-log">
+          <input type="radio" name="yaxis" value="log" /> 对数坐标
+        </label>
+      </div>
+    </div>
+
+    <!-- 色彩方案 -->
+    <div class="panel-section">
+      <h3>色彩方案</h3>
+      <div class="colorscale-grid">
+        <button class="cs-btn active" data-cs="Hot">Hot</button>
+        <button class="cs-btn" data-cs="Plasma">Plasma</button>
+        <button class="cs-btn" data-cs="Viridis">Viridis</button>
+        <button class="cs-btn" data-cs="Inferno">Inferno</button>
+        <button class="cs-btn" data-cs="Jet">Jet</button>
+        <button class="cs-btn" data-cs="RdBu">RdBu</button>
+        <button class="cs-btn" data-cs="YlOrRd">YlOrRd</button>
+        <button class="cs-btn" data-cs="Electric">Electric</button>
+        <button class="cs-btn" data-cs="Cividis">Cividis</button>
+      </div>
+    </div>
+
+    <!-- 更新按钮 -->
+    <button class="btn-primary" id="btn-update">&#8635; 更新图表</button>
+
+    <!-- 峰值信息 -->
+    <div class="panel-section">
+      <h3>维恩位移定律</h3>
+      <div class="info-card">
+        <strong>峰值波长</strong>随温度升高向短波方向移动：
+        <div class="formula">λ<sub>peak</sub> = b / T<br/>b = 2.898 × 10⁻³ m·K</div>
+      </div>
+      <div class="peak-info" id="peak-info">
+        <div class="peak-card">
+          <div class="val" id="peak-tmin">—</div>
+          <div class="lbl">T<sub>min</sub> 峰值波长</div>
+        </div>
+        <div class="peak-card">
+          <div class="val" id="peak-tmax">—</div>
+          <div class="lbl">T<sub>max</sub> 峰值波长</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 物理公式 -->
+    <div class="panel-section">
+      <h3>普朗克辐射定律</h3>
+      <div class="info-card">
+        单位面积、单位立体角、单位波长的<strong>光谱辐射亮度</strong>：
+        <div class="formula">
+          B(λ,T) = (2hc²/λ⁵) ·<br/>
+          &nbsp;&nbsp;1 / (exp(hc/λkT) − 1)<br/><br/>
+          h = 6.626×10⁻³⁴ J·s<br/>
+          c = 2.998×10⁸ m/s<br/>
+          k = 1.381×10⁻²³ J/K
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- 右侧图表区 -->
+  <div id="chart-container">
+    <div class="chart-toolbar">
+      <div>
+        <div class="chart-title">黑体光谱辐射亮度 B(λ, T)</div>
+        <div class="chart-subtitle">拖拽旋转 · 滚轮缩放 · 悬停查看数值</div>
+      </div>
+      <div class="view-tabs">
+        <button class="view-tab active" data-view="3d">3D 曲面</button>
+        <button class="view-tab" data-view="contour">等高线</button>
+        <button class="view-tab" data-view="heatmap">热力图</button>
+        <button class="view-tab" data-view="lines">多温度曲线</button>
+      </div>
+    </div>
+    <div id="plot"></div>
+  </div>
+
+</main>
+
+<!-- 底部状态栏 -->
+<footer>
+  <div class="status">
+    <div class="dot"></div>
+    <span id="status-text">就绪</span>
+  </div>
+  <span>黑体辐射 3D 可视化 · 普朗克辐射定律 · 离线版本</span>
+</footer>
+
+<!-- ===== JavaScript 核心逻辑 ===== -->
+<script>
+  // ===== 物理常数 =====
+  const h  = 6.62607015e-34;   // 普朗克常数 J·s
+  const c  = 2.99792458e8;     // 光速 m/s
+  const kB = 1.380649e-23;     // 玻尔兹曼常数 J/K
+  const b  = 2.897771955e-3;   // 维恩位移常数 m·K
+
+  // ===== 状态 =====
+  let currentColorscale = 'Hot';
+  let currentView = '3d';
+  let yAxisMode = 'linear';
+
+  // ===== 普朗克公式 =====
+  // λ 单位: nm → 转换为 m 计算；返回 W·sr⁻¹·m⁻³
+  function planck(lambda_nm, T) {
+    const lam = lambda_nm * 1e-9;
+    const exp_arg = (h * c) / (lam * kB * T);
+    if (exp_arg > 700) return 0;          // 防止溢出
+    return (2 * h * c * c) / (Math.pow(lam, 5) * (Math.exp(exp_arg) - 1));
+  }
+
+  // ===== 生成数据网格 =====
+  function buildGrid() {
+    const Tmin   = +document.getElementById('tmin').value;
+    const Tmax   = +document.getElementById('tmax').value;
+    const Tsteps = +document.getElementById('tstep').value;
+    const Lmin   = +document.getElementById('lmin').value;
+    const Lmax   = +document.getElementById('lmax').value;
+    const Lsteps = +document.getElementById('lstep').value;
+
+    const Teff = Math.min(Tmin, Tmax - 100);
+    const temps = linspace(Teff, Tmax, Tsteps);
+    const waves = linspace(Lmin, Lmax, Lsteps);
+
+    // z[i][j] = B(waves[j], temps[i])
+    const z = temps.map(T => waves.map(lam => planck(lam, T)));
+
+    return { temps, waves, z };
+  }
+
+  function linspace(a, b, n) {
+    if (n < 2) return [a];
+    const arr = [];
+    for (let i = 0; i < n; i++) arr.push(a + (b - a) * i / (n - 1));
+    return arr;
+  }
+
+  // ===== 更新峰值显示 =====
+  function updatePeakInfo() {
+    const Tmin = +document.getElementById('tmin').value;
+    const Tmax = +document.getElementById('tmax').value;
+    const p1 = (b / Tmin * 1e9).toFixed(0);
+    const p2 = (b / Tmax * 1e9).toFixed(0);
+    document.getElementById('peak-tmin').textContent = p1 + ' nm';
+    document.getElementById('peak-tmax').textContent = p2 + ' nm';
+  }
+
+  // ===== 格式化辐射强度 =====
+  function fmtB(v) {
+    if (v === 0) return '0';
+    const e = Math.floor(Math.log10(v));
+    const m = (v / Math.pow(10, e)).toFixed(2);
+    return m + '×10<sup>' + e + '</sup>';
+  }
+
+  // ===== 绘图 =====
+  function render() {
+    document.getElementById('status-text').textContent = '计算中…';
+
+    setTimeout(() => {
+      const { temps, waves, z } = buildGrid();
+      const logZ = z.map(row => row.map(v => v > 0 ? Math.log10(v) : null));
+
+      const useLog = yAxisMode === 'log';
+      const zData  = useLog ? logZ : z;
+      const zTitle = useLog
+        ? 'log₁₀ B(λ,T)  [W·sr⁻¹·m⁻³]'
+        : 'B(λ,T)  [W·sr⁻¹·m⁻³]';
+
+      let traces = [];
+      let layout = {};
+
+      const darkLayout = {
+        paper_bgcolor: '#0d1117',
+        plot_bgcolor:  '#0d1117',
+        font: { color: '#c9d1d9', family: 'Segoe UI, PingFang SC, sans-serif', size: 12 },
+        margin: { l: 60, r: 20, t: 20, b: 60 },
+      };
+
+      if (currentView === '3d') {
+        traces = [{
+          type: 'surface',
+          x: waves,
+          y: temps,
+          z: zData,
+          colorscale: currentColorscale,
+          colorbar: {
+            title: { text: zTitle, side: 'right', font: { size: 11 } },
+            tickfont: { size: 10 },
+            len: 0.7,
+          },
+          hovertemplate:
+            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
+            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e} W·sr⁻¹·m⁻³') +
+            '<extra></extra>',
+          lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.3, roughness: 0.5 },
+          lightposition: { x: 1000, y: 1000, z: 5000 },
+        }];
+        layout = {
+          ...darkLayout,
+          margin: { l: 0, r: 0, t: 30, b: 0 },
+          scene: {
+            xaxis: {
+              title: 'λ 波长 (nm)',
+              gridcolor: '#30363d', zerolinecolor: '#30363d',
+              backgroundcolor: '#161b22', color: '#8b949e',
+            },
+            yaxis: {
+              title: 'T 温度 (K)',
+              gridcolor: '#30363d', zerolinecolor: '#30363d',
+              backgroundcolor: '#161b22', color: '#8b949e',
+            },
+            zaxis: {
+              title: zTitle,
+              gridcolor: '#30363d', zerolinecolor: '#30363d',
+              backgroundcolor: '#0d1117', color: '#8b949e',
+            },
+            bgcolor: '#0d1117',
+            camera: { eye: { x: 1.5, y: -1.8, z: 1.2 } },
+          },
+        };
+
+      } else if (currentView === 'contour') {
+        traces = [{
+          type: 'contour',
+          x: waves,
+          y: temps,
+          z: zData,
+          colorscale: currentColorscale,
+          contours: { coloring: 'heatmap', showlabels: true,
+            labelfont: { size: 9, color: '#fff' } },
+          colorbar: { title: { text: zTitle }, tickfont: { size: 10 } },
+          hovertemplate:
+            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
+            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e}') +
+            '<extra></extra>',
+        }];
+        layout = {
+          ...darkLayout,
+          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+          yaxis: { title: 'T 温度 (K)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+        };
+
+      } else if (currentView === 'heatmap') {
+        traces = [{
+          type: 'heatmap',
+          x: waves,
+          y: temps,
+          z: zData,
+          colorscale: currentColorscale,
+          colorbar: { title: { text: zTitle }, tickfont: { size: 10 } },
+          hovertemplate:
+            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
+            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e}') +
+            '<extra></extra>',
+        }];
+        layout = {
+          ...darkLayout,
+          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+          yaxis: { title: 'T 温度 (K)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+        };
+
+      } else if (currentView === 'lines') {
+        // 每条温度对应一条曲线
+        const palette = [
+          '#ff4500','#ff7f0e','#ffd700','#adff2f',
+          '#00fa9a','#00bfff','#8a2be2','#ff69b4',
+          '#ff6347','#7fffd4','#dc143c','#1e90ff',
+        ];
+        traces = temps.map((T, i) => {
+          const yVals = useLog
+            ? waves.map(lam => { const v = planck(lam, T); return v > 0 ? Math.log10(v) : null; })
+            : waves.map(lam => planck(lam, T));
+          return {
+            type: 'scatter',
+            mode: 'lines',
+            name: T.toFixed(0) + ' K',
+            x: waves,
+            y: yVals,
+            line: {
+              color: palette[i % palette.length],
+              width: 2,
+            },
+            hovertemplate: 'T = ' + T.toFixed(0) + ' K<br>λ = %{x:.0f} nm<br>' +
+              (useLog ? 'log₁₀B = %{y:.2f}' : 'B = %{y:.3e} W·sr⁻¹·m⁻³') +
+              '<extra></extra>',
+          };
+        });
+        layout = {
+          ...darkLayout,
+          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d' },
+          yaxis: { title: zTitle, gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d' },
+          legend: {
+            bgcolor: '#161b22', bordercolor: '#30363d', borderwidth: 1,
+            font: { color: '#c9d1d9', size: 10 },
+          },
+          hovermode: 'x unified',
+        };
+      }
+
+      Plotly.react('plot', traces, layout, {
+        responsive: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['sendDataToCloud'],
+        toImageButtonOptions: { format: 'png', width: 1600, height: 900, scale: 2 },
+      });
+
+      updatePeakInfo();
+      document.getElementById('status-text').textContent =
+        `已渲染 ${temps.length} × ${waves.length} 网格点`;
+    }, 10);
+  }
+
+  // ===== 控件事件绑定 =====
+
+  // 滑块实时更新标签
+  function bindSlider(id, labelId, suffix, decimals) {
+    const el = document.getElementById(id);
+    const lb = document.getElementById(labelId);
+    el.addEventListener('input', () => {
+      lb.textContent = (+el.value).toFixed(decimals) + ' ' + suffix;
+    });
+  }
+  bindSlider('tmin',  'tmin-val',  'K',  0);
+  bindSlider('tmax',  'tmax-val',  'K',  0);
+  bindSlider('tstep', 'tstep-val', '',   0);
+  bindSlider('lmin',  'lmin-val',  'nm', 0);
+  bindSlider('lmax',  'lmax-val',  'nm', 0);
+  bindSlider('lstep', 'lstep-val', '',   0);
+
+  // 更新按钮
+  document.getElementById('btn-update').addEventListener('click', render);
+
+  // 纵轴模式
+  document.querySelectorAll('input[name="yaxis"]').forEach(radio => {
+    radio.addEventListener('change', e => {
+      yAxisMode = e.target.value;
+      document.getElementById('lbl-linear').classList.toggle('active', yAxisMode === 'linear');
+      document.getElementById('lbl-log').classList.toggle('active', yAxisMode === 'log');
+    });
+  });
+
+  // 色彩方案
+  document.querySelectorAll('.cs-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cs-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentColorscale = btn.dataset.cs;
+    });
+  });
+
+  // 视图切换
+  document.querySelectorAll('.view-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentView = tab.dataset.view;
+      render();
+    });
+  });
+
+  // 窗口大小变化时重绘
+  window.addEventListener('resize', () => {
+    Plotly.Plots.resize('plot');
+  });
+
+  // ===== 初始渲染 =====
+  render();
+</script>
+</body>
+</html>
