@@ -1,89 +1,190 @@
 <!DOCTYPE html>
-<html lang="zh-CN"> 
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>黑体辐射强度 — 3D 可视化</title>
-
-  <!-- Plotly.js 离线版本（CDN，可替换为本地文件） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>黑体辐射 3D 可视化</title>
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-
   <style>
-    /* ===== 全局重置 ===== */
+    /* ===== Reset ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
 
     body {
       font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
       background: #0d1117;
       color: #e6edf3;
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
+      height: 100dvh; /* dynamic viewport height for mobile */
     }
 
-    /* ===== 顶部标题栏 ===== */
+    /* ===== Header ===== */
     header {
-      background: linear-gradient(135deg, #161b22 0%, #1f2937 100%);
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #161b22, #1f2937);
       border-bottom: 1px solid #30363d;
-      padding: 18px 32px;
+      padding: 10px 16px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
+      min-height: 52px;
     }
-    header .icon {
-      width: 42px; height: 42px;
+    .header-icon {
+      width: 32px; height: 32px; flex-shrink: 0;
       background: radial-gradient(circle at 40% 40%, #ff9f43, #ee5a24);
       border-radius: 50%;
-      box-shadow: 0 0 18px #ff9f4388;
-      flex-shrink: 0;
+      box-shadow: 0 0 12px #ff9f4366;
     }
-    header h1 {
-      font-size: 1.45rem;
+    .header-text h1 {
+      font-size: clamp(0.85rem, 3vw, 1.1rem);
       font-weight: 700;
-      letter-spacing: 0.02em;
       background: linear-gradient(90deg, #ffd700, #ff6b35);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      white-space: nowrap;
     }
-    header p {
-      font-size: 0.82rem;
+    .header-text p {
+      font-size: clamp(0.65rem, 2vw, 0.75rem);
       color: #8b949e;
-      margin-top: 2px;
-    }
-
-    /* ===== 主体布局 ===== */
-    main {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 0;
+      white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* 移动端右上角控制面板触发按钮 */
+    .panel-toggle {
+      margin-left: auto;
+      flex-shrink: 0;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #c9d1d9;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: none; /* 桌面隐藏，移动端显示 */
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .panel-toggle svg { width: 14px; height: 14px; fill: currentColor; }
+
+    /* ===== View Tabs (below header) ===== */
+    .view-tabs-bar {
+      flex-shrink: 0;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding: 0 8px;
+    }
+    .view-tabs-bar::-webkit-scrollbar { display: none; }
+    .view-tab {
+      flex-shrink: 0;
+      padding: 8px 16px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: #8b949e;
+      font-size: clamp(0.75rem, 2.5vw, 0.85rem);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .view-tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+    .view-tab:hover { color: #c9d1d9; }
+
+    /* ===== Main layout ===== */
+    .main-wrap {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+      min-height: 0;
     }
 
-    /* ===== 左侧控制面板 ===== */
+    /* ===== Sidebar (control panel) ===== */
     aside {
+      width: 280px;
+      flex-shrink: 0;
       background: #161b22;
       border-right: 1px solid #30363d;
-      padding: 24px 20px;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       display: flex;
       flex-direction: column;
-      gap: 22px;
+      gap: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .aside-inner { padding: 14px 14px 80px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* 移动端侧边栏变为底部抽屉 */
+    @media (max-width: 768px) {
+      aside {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        width: 100%;
+        height: 70vh;
+        max-height: 70vh;
+        border-right: none;
+        border-top: 1px solid #30363d;
+        border-radius: 16px 16px 0 0;
+        z-index: 100;
+        transform: translateY(100%);
+        box-shadow: 0 -8px 32px #00000066;
+      }
+      aside.open { transform: translateY(0); }
+      .panel-toggle { display: flex; }
+      .aside-inner { padding: 8px 14px 100px; }
+      /* 抽屉顶部拖拽条 */
+      .drawer-handle {
+        display: flex;
+        justify-content: center;
+        padding: 10px 0 4px;
+        flex-shrink: 0;
+      }
+      .drawer-handle::after {
+        content: '';
+        width: 40px; height: 4px;
+        background: #30363d;
+        border-radius: 2px;
+      }
+    }
+    @media (min-width: 769px) {
+      .drawer-handle { display: none; }
     }
 
+    /* 侧边栏遮罩 */
+    .overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: #00000066;
+      z-index: 99;
+    }
+    @media (max-width: 768px) {
+      .overlay.show { display: block; }
+    }
+
+    /* ===== Panel sections ===== */
     .panel-section {
       background: #1c2128;
       border: 1px solid #30363d;
       border-radius: 10px;
-      padding: 16px;
+      padding: 12px;
     }
     .panel-section h3 {
-      font-size: 0.82rem;
+      font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: #58a6ff;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -91,42 +192,33 @@
     .panel-section h3::before {
       content: '';
       display: inline-block;
-      width: 3px; height: 14px;
+      width: 3px; height: 12px;
       background: #58a6ff;
       border-radius: 2px;
     }
 
-    /* 滑块组 */
-    .slider-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
+    /* Sliders */
+    .slider-group { display: flex; flex-direction: column; gap: 10px; }
     .slider-item label {
       display: flex;
       justify-content: space-between;
-      font-size: 0.83rem;
+      font-size: 0.8rem;
       color: #c9d1d9;
-      margin-bottom: 5px;
+      margin-bottom: 4px;
     }
-    .slider-item label span {
-      color: #ffd700;
-      font-weight: 600;
-      min-width: 60px;
-      text-align: right;
-    }
+    .slider-item label span { color: #ffd700; font-weight: 600; min-width: 70px; text-align: right; }
     input[type="range"] {
       -webkit-appearance: none;
-      width: 100%;
-      height: 5px;
+      width: 100%; height: 5px;
       border-radius: 3px;
       background: #30363d;
       outline: none;
       cursor: pointer;
+      touch-action: manipulation;
     }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 16px; height: 16px;
+      width: 20px; height: 20px; /* 移动端更大的触控区域 */
       border-radius: 50%;
       background: linear-gradient(135deg, #ffd700, #ff6b35);
       box-shadow: 0 0 6px #ffd70066;
@@ -134,387 +226,298 @@
     }
     input[type="range"]::-webkit-slider-runnable-track {
       background: linear-gradient(to right, #58a6ff, #ffd700);
-      height: 5px;
-      border-radius: 3px;
+      height: 5px; border-radius: 3px;
     }
 
-    /* 单选按钮组 */
-    .radio-group {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    /* Radio */
+    .radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
     .radio-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      font-size: 0.84rem;
-      color: #c9d1d9;
-      padding: 6px 10px;
-      border-radius: 6px;
-      transition: background 0.15s;
-    }
-    .radio-item:hover { background: #21262d; }
-    .radio-item input[type="radio"] { accent-color: #ffd700; }
-    .radio-item.active { background: #1f3a5f; color: #58a6ff; }
-
-    /* 色彩选择 */
-    .colorscale-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .cs-btn {
-      padding: 6px 4px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 0.82rem; color: #c9d1d9;
+      padding: 7px 12px; border-radius: 8px;
       border: 1px solid #30363d;
-      border-radius: 6px;
-      background: #21262d;
-      color: #c9d1d9;
-      font-size: 0.75rem;
-      cursor: pointer;
-      text-align: center;
       transition: all 0.15s;
+      touch-action: manipulation;
+    }
+    .radio-item:hover { border-color: #58a6ff; }
+    .radio-item.active { background: #1f3a5f; border-color: #58a6ff; color: #58a6ff; }
+    .radio-item input[type="radio"] { display: none; }
+
+    /* Colorscale */
+    .colorscale-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .cs-btn {
+      padding: 7px 4px;
+      border: 1px solid #30363d; border-radius: 6px;
+      background: #21262d; color: #c9d1d9;
+      font-size: 0.75rem; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+      touch-action: manipulation;
     }
     .cs-btn:hover { border-color: #58a6ff; color: #58a6ff; }
     .cs-btn.active { border-color: #ffd700; background: #1f3a5f; color: #ffd700; }
 
-    /* 按钮 */
+    /* Update button */
     .btn-primary {
-      width: 100%;
-      padding: 10px;
+      width: 100%; padding: 11px;
       background: linear-gradient(135deg, #1f6feb, #388bfd);
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
+      border: none; border-radius: 8px;
+      color: #fff; font-size: 0.9rem; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+      touch-action: manipulation;
     }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:active { transform: scale(0.98); }
 
-    /* 信息卡片 */
+    /* Info card */
     .info-card {
-      background: #0d1117;
-      border: 1px solid #21262d;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 0.78rem;
-      color: #8b949e;
-      line-height: 1.7;
+      background: #0d1117; border: 1px solid #21262d;
+      border-radius: 8px; padding: 10px;
+      font-size: 0.76rem; color: #8b949e; line-height: 1.7;
     }
     .info-card strong { color: #e6edf3; }
     .info-card .formula {
       font-family: 'Courier New', monospace;
-      background: #161b22;
-      border-left: 3px solid #58a6ff;
-      padding: 8px 10px;
-      margin-top: 8px;
+      background: #161b22; border-left: 3px solid #58a6ff;
+      padding: 7px 10px; margin-top: 7px;
       border-radius: 0 6px 6px 0;
-      color: #79c0ff;
-      font-size: 0.8rem;
-      line-height: 1.5;
+      color: #79c0ff; font-size: 0.76rem; line-height: 1.5;
     }
 
-    /* 峰值信息 */
-    .peak-info {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 4px;
-    }
+    /* Peak info */
+    .peak-info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     .peak-card {
-      background: #0d1117;
-      border: 1px solid #21262d;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
+      background: #0d1117; border: 1px solid #21262d;
+      border-radius: 8px; padding: 10px; text-align: center;
     }
-    .peak-card .val {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #ffd700;
-    }
-    .peak-card .lbl {
-      font-size: 0.72rem;
-      color: #8b949e;
-      margin-top: 2px;
-    }
+    .peak-card .val { font-size: 1rem; font-weight: 700; color: #ffd700; }
+    .peak-card .lbl { font-size: 0.7rem; color: #8b949e; margin-top: 2px; }
 
-    /* ===== 右侧图表区 ===== */
-    #chart-container {
-      position: relative;
-      background: #0d1117;
+    /* ===== Chart area ===== */
+    .chart-area {
+      flex: 1;
       display: flex;
       flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
     }
     #plot {
       flex: 1;
       min-height: 0;
+      min-width: 0;
+      width: 100%;
     }
 
-    /* 图表顶部工具栏 */
-    .chart-toolbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 20px;
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
-      flex-shrink: 0;
-    }
-    .chart-toolbar .chart-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #e6edf3;
-    }
-    .chart-toolbar .chart-subtitle {
-      font-size: 0.75rem;
-      color: #8b949e;
-      margin-top: 2px;
-    }
-    .view-tabs {
-      display: flex;
-      gap: 6px;
-    }
-    .view-tab {
-      padding: 5px 14px;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      background: transparent;
-      color: #8b949e;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-    .view-tab:hover { border-color: #58a6ff; color: #58a6ff; }
-    .view-tab.active { background: #1f3a5f; border-color: #58a6ff; color: #58a6ff; }
-
-    /* 底部状态栏 */
+    /* ===== Footer ===== */
     footer {
+      flex-shrink: 0;
       background: #161b22;
       border-top: 1px solid #30363d;
-      padding: 8px 24px;
+      padding: 6px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.75rem;
+      font-size: clamp(0.65rem, 2vw, 0.75rem);
       color: #8b949e;
-      flex-shrink: 0;
+      gap: 8px;
     }
-    footer .status { display: flex; align-items: center; gap: 6px; }
-    footer .dot {
-      width: 7px; height: 7px;
-      border-radius: 50%;
-      background: #3fb950;
-      animation: pulse 2s infinite;
+    .status { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #3fb950; animation: pulse 2s infinite;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
     }
+    .footer-right {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-align: right;
+    }
 
-    /* ===== 响应式 ===== */
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      aside { border-right: none; border-bottom: 1px solid #30363d; max-height: 340px; }
+    /* ===== 移动端图表内边距补偿 ===== */
+    @media (max-width: 480px) {
+      .view-tab { padding: 8px 12px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ===== 顶部标题 ===== -->
+<!-- Header -->
 <header>
-  <div class="icon"></div>
-  <div>
+  <div class="header-icon"></div>
+  <div class="header-text">
     <h1>黑体辐射强度 3D 可视化</h1>
-    <p>基于普朗克辐射定律 · Planck's Law · 离线交互式图表</p>
+    <p>普朗克辐射定律 · 离线交互式图表</p>
   </div>
+  <!-- 移动端控制面板按钮 -->
+  <button class="panel-toggle" id="panel-toggle" aria-label="打开控制面板">
+    <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/><path d="M3 6h18" stroke="#c9d1d9" stroke-width="2" stroke-linecap="round"/></svg>
+    参数
+  </button>
 </header>
 
-<!-- ===== 主体 ===== -->
-<main>
+<!-- View Tabs -->
+<div class="view-tabs-bar">
+  <button class="view-tab active" data-view="3d">3D 曲面</button>
+  <button class="view-tab" data-view="contour">等高线</button>
+  <button class="view-tab" data-view="heatmap">热力图</button>
+  <button class="view-tab" data-view="lines">多温度曲线</button>
+</div>
 
-  <!-- 左侧控制面板 -->
-  <aside>
+<!-- Main -->
+<div class="main-wrap">
+  <!-- 遮罩层（移动端） -->
+  <div class="overlay" id="overlay"></div>
 
-    <!-- 温度范围 -->
-    <div class="panel-section">
-      <h3>温度范围</h3>
-      <div class="slider-group">
-        <div class="slider-item">
-          <label>最低温度 T<sub>min</sub> <span id="tmin-val">500 K</span></label>
-          <input type="range" id="tmin" min="100" max="9000" step="100" value="500" />
-        </div>
-        <div class="slider-item">
-          <label>最高温度 T<sub>max</sub> <span id="tmax-val">6000 K</span></label>
-          <input type="range" id="tmax" min="500" max="20000" step="100" value="6000" />
-        </div>
-        <div class="slider-item">
-          <label>温度步数 <span id="tstep-val">12</span></label>
-          <input type="range" id="tstep" min="5" max="50" step="1" value="12" />
-        </div>
-      </div>
-    </div>
+  <!-- 控制面板 -->
+  <aside id="aside">
+    <div class="drawer-handle"></div>
+    <div class="aside-inner">
 
-    <!-- 波长范围 -->
-    <div class="panel-section">
-      <h3>波长范围</h3>
-      <div class="slider-group">
-        <div class="slider-item">
-          <label>最短波长 λ<sub>min</sub> <span id="lmin-val">100 nm</span></label>
-          <input type="range" id="lmin" min="10" max="2000" step="10" value="100" />
-        </div>
-        <div class="slider-item">
-          <label>最长波长 λ<sub>max</sub> <span id="lmax-val">3000 nm</span></label>
-          <input type="range" id="lmax" min="500" max="50000" step="100" value="3000" />
-        </div>
-        <div class="slider-item">
-          <label>波长步数 <span id="lstep-val">120</span></label>
-          <input type="range" id="lstep" min="20" max="300" step="10" value="120" />
+      <!-- 温度范围 -->
+      <div class="panel-section">
+        <h3>温度范围</h3>
+        <div class="slider-group">
+          <div class="slider-item">
+            <label>最低温度 T<sub>min</sub> <span id="tmin-val">500 K</span></label>
+            <input type="range" id="tmin" min="100" max="9000" step="100" value="500" />
+          </div>
+          <div class="slider-item">
+            <label>最高温度 T<sub>max</sub> <span id="tmax-val">6000 K</span></label>
+            <input type="range" id="tmax" min="500" max="20000" step="100" value="6000" />
+          </div>
+          <div class="slider-item">
+            <label>温度步数 <span id="tstep-val">12</span></label>
+            <input type="range" id="tstep" min="5" max="50" step="1" value="12" />
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 纵轴 -->
-    <div class="panel-section">
-      <h3>纵轴模式</h3>
-      <div class="radio-group">
-        <label class="radio-item active" id="lbl-linear">
-          <input type="radio" name="yaxis" value="linear" checked /> 线性坐标
-        </label>
-        <label class="radio-item" id="lbl-log">
-          <input type="radio" name="yaxis" value="log" /> 对数坐标
-        </label>
-      </div>
-    </div>
-
-    <!-- 色彩方案 -->
-    <div class="panel-section">
-      <h3>色彩方案</h3>
-      <div class="colorscale-grid">
-        <button class="cs-btn active" data-cs="Hot">Hot</button>
-        <button class="cs-btn" data-cs="Plasma">Plasma</button>
-        <button class="cs-btn" data-cs="Viridis">Viridis</button>
-        <button class="cs-btn" data-cs="Inferno">Inferno</button>
-        <button class="cs-btn" data-cs="Jet">Jet</button>
-        <button class="cs-btn" data-cs="RdBu">RdBu</button>
-        <button class="cs-btn" data-cs="YlOrRd">YlOrRd</button>
-        <button class="cs-btn" data-cs="Electric">Electric</button>
-        <button class="cs-btn" data-cs="Cividis">Cividis</button>
-      </div>
-    </div>
-
-    <!-- 更新按钮 -->
-    <button class="btn-primary" id="btn-update">&#8635; 更新图表</button>
-
-    <!-- 峰值信息 -->
-    <div class="panel-section">
-      <h3>维恩位移定律</h3>
-      <div class="info-card">
-        <strong>峰值波长</strong>随温度升高向短波方向移动：
-        <div class="formula">λ<sub>peak</sub> = b / T<br/>b = 2.898 × 10⁻³ m·K</div>
-      </div>
-      <div class="peak-info" id="peak-info">
-        <div class="peak-card">
-          <div class="val" id="peak-tmin">—</div>
-          <div class="lbl">T<sub>min</sub> 峰值波长</div>
-        </div>
-        <div class="peak-card">
-          <div class="val" id="peak-tmax">—</div>
-          <div class="lbl">T<sub>max</sub> 峰值波长</div>
+      <!-- 波长范围 -->
+      <div class="panel-section">
+        <h3>波长范围</h3>
+        <div class="slider-group">
+          <div class="slider-item">
+            <label>最短波长 λ<sub>min</sub> <span id="lmin-val">100 nm</span></label>
+            <input type="range" id="lmin" min="10" max="2000" step="10" value="100" />
+          </div>
+          <div class="slider-item">
+            <label>最长波长 λ<sub>max</sub> <span id="lmax-val">3000 nm</span></label>
+            <input type="range" id="lmax" min="500" max="50000" step="100" value="3000" />
+          </div>
+          <div class="slider-item">
+            <label>波长步数 <span id="lstep-val">100</span></label>
+            <input type="range" id="lstep" min="20" max="300" step="10" value="100" />
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 物理公式 -->
-    <div class="panel-section">
-      <h3>普朗克辐射定律</h3>
-      <div class="info-card">
-        单位面积、单位立体角、单位波长的<strong>光谱辐射亮度</strong>：
-        <div class="formula">
-          B(λ,T) = (2hc²/λ⁵) ·<br/>
-          &nbsp;&nbsp;1 / (exp(hc/λkT) − 1)<br/><br/>
-          h = 6.626×10⁻³⁴ J·s<br/>
-          c = 2.998×10⁸ m/s<br/>
-          k = 1.381×10⁻²³ J/K
+      <!-- 纵轴 -->
+      <div class="panel-section">
+        <h3>纵轴模式</h3>
+        <div class="radio-group">
+          <label class="radio-item active" id="lbl-linear">
+            <input type="radio" name="yaxis" value="linear" checked />线性
+          </label>
+          <label class="radio-item" id="lbl-log">
+            <input type="radio" name="yaxis" value="log" />对数
+          </label>
         </div>
       </div>
-    </div>
 
+      <!-- 色彩方案 -->
+      <div class="panel-section">
+        <h3>色彩方案</h3>
+        <div class="colorscale-grid">
+          <button class="cs-btn active" data-cs="Hot">Hot</button>
+          <button class="cs-btn" data-cs="Plasma">Plasma</button>
+          <button class="cs-btn" data-cs="Viridis">Viridis</button>
+          <button class="cs-btn" data-cs="Inferno">Inferno</button>
+          <button class="cs-btn" data-cs="Jet">Jet</button>
+          <button class="cs-btn" data-cs="RdBu">RdBu</button>
+          <button class="cs-btn" data-cs="YlOrRd">YlOrRd</button>
+          <button class="cs-btn" data-cs="Electric">Electric</button>
+          <button class="cs-btn" data-cs="Cividis">Cividis</button>
+        </div>
+      </div>
+
+      <!-- 更新按钮 -->
+      <button class="btn-primary" id="btn-update">&#8635; 更新图表</button>
+
+      <!-- 峰值信息 -->
+      <div class="panel-section">
+        <h3>维恩位移定律</h3>
+        <div class="info-card">
+          峰值波长随温度升高向短波移动：
+          <div class="formula">λ<sub>peak</sub> = b / T<br/>b = 2.898 × 10⁻³ m·K</div>
+        </div>
+        <div class="peak-info">
+          <div class="peak-card">
+            <div class="val" id="peak-tmin">—</div>
+            <div class="lbl">T<sub>min</sub> 峰值波长</div>
+          </div>
+          <div class="peak-card">
+            <div class="val" id="peak-tmax">—</div>
+            <div class="lbl">T<sub>max</sub> 峰值波长</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 公式 -->
+      <div class="panel-section">
+        <h3>普朗克辐射定律</h3>
+        <div class="info-card">
+          单位面积·立体角·波长的<strong>光谱辐射亮度</strong>：
+          <div class="formula">
+            B(λ,T) = (2hc²/λ⁵) ·<br/>
+            &nbsp;&nbsp;1 / (exp(hc/λkT) − 1)<br/><br/>
+            h = 6.626×10⁻³⁴ J·s<br/>
+            c = 2.998×10⁸ m/s<br/>
+            k = 1.381×10⁻²³ J/K
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /aside-inner -->
   </aside>
 
-  <!-- 右侧图表区 -->
-  <div id="chart-container">
-    <div class="chart-toolbar">
-      <div>
-        <div class="chart-title">黑体光谱辐射亮度 B(λ, T)</div>
-        <div class="chart-subtitle">拖拽旋转 · 滚轮缩放 · 悬停查看数值</div>
-      </div>
-      <div class="view-tabs">
-        <button class="view-tab active" data-view="3d">3D 曲面</button>
-        <button class="view-tab" data-view="contour">等高线</button>
-        <button class="view-tab" data-view="heatmap">热力图</button>
-        <button class="view-tab" data-view="lines">多温度曲线</button>
-      </div>
-    </div>
+  <!-- Chart area -->
+  <div class="chart-area">
     <div id="plot"></div>
   </div>
+</div>
 
-</main>
-
-<!-- 底部状态栏 -->
+<!-- Footer -->
 <footer>
   <div class="status">
     <div class="dot"></div>
     <span id="status-text">就绪</span>
   </div>
-  <span>黑体辐射 3D 可视化 · 普朗克辐射定律 · 离线版本</span>
+  <div class="footer-right">黑体辐射 · 普朗克辐射定律 · 离线版</div>
 </footer>
 
-<!-- ===== JavaScript 核心逻辑 ===== -->
 <script>
-  // ===== 物理常数 =====
-  const h  = 6.62607015e-34;   // 普朗克常数 J·s
-  const c  = 2.99792458e8;     // 光速 m/s
-  const kB = 1.380649e-23;     // 玻尔兹曼常数 J/K
-  const b  = 2.897771955e-3;   // 维恩位移常数 m·K
+  /* ===== 物理常数 ===== */
+  const h  = 6.62607015e-34;
+  const c  = 2.99792458e8;
+  const kB = 1.380649e-23;
+  const b  = 2.897771955e-3;
 
-  // ===== 状态 =====
+  /* ===== 状态 ===== */
   let currentColorscale = 'Hot';
   let currentView = '3d';
   let yAxisMode = 'linear';
 
-  // ===== 普朗克公式 =====
-  // λ 单位: nm → 转换为 m 计算；返回 W·sr⁻¹·m⁻³
+  /* ===== 普朗克公式 ===== */
   function planck(lambda_nm, T) {
     const lam = lambda_nm * 1e-9;
     const exp_arg = (h * c) / (lam * kB * T);
-    if (exp_arg > 700) return 0;          // 防止溢出
-    return (2 * h * c * c) / (Math.pow(lam, 5) * (Math.exp(exp_arg) - 1));
+    if (exp_arg > 700) return 0;
+    return (2 * h * c * c) / (Math.pow(lam, 5) * (Math.expm1(exp_arg)));
   }
 
-  // ===== 生成数据网格 =====
-  function buildGrid() {
-    const Tmin   = +document.getElementById('tmin').value;
-    const Tmax   = +document.getElementById('tmax').value;
-    const Tsteps = +document.getElementById('tstep').value;
-    const Lmin   = +document.getElementById('lmin').value;
-    const Lmax   = +document.getElementById('lmax').value;
-    const Lsteps = +document.getElementById('lstep').value;
-
-    const Teff = Math.min(Tmin, Tmax - 100);
-    const temps = linspace(Teff, Tmax, Tsteps);
-    const waves = linspace(Lmin, Lmax, Lsteps);
-
-    // z[i][j] = B(waves[j], temps[i])
-    const z = temps.map(T => waves.map(lam => planck(lam, T)));
-
-    return { temps, waves, z };
-  }
-
+  /* ===== linspace ===== */
   function linspace(a, b, n) {
     if (n < 2) return [a];
     const arr = [];
@@ -522,203 +525,249 @@
     return arr;
   }
 
-  // ===== 更新峰值显示 =====
+  /* ===== 构建数据网格 ===== */
+  function buildGrid() {
+    const Tmin   = +document.getElementById('tmin').value;
+    const Tmax   = +document.getElementById('tmax').value;
+    const Tsteps = +document.getElementById('tstep').value;
+    const Lmin   = +document.getElementById('lmin').value;
+    const Lmax   = +document.getElementById('lmax').value;
+    const Lsteps = +document.getElementById('lstep').value;
+    const Teff   = Math.min(Tmin, Tmax - 100);
+    const temps  = linspace(Teff, Tmax, Tsteps);
+    const waves  = linspace(Lmin, Lmax, Lsteps);
+    const z      = temps.map(T => waves.map(lam => planck(lam, T)));
+    return { temps, waves, z };
+  }
+
+  /* ===== 峰值信息 ===== */
   function updatePeakInfo() {
     const Tmin = +document.getElementById('tmin').value;
     const Tmax = +document.getElementById('tmax').value;
-    const p1 = (b / Tmin * 1e9).toFixed(0);
-    const p2 = (b / Tmax * 1e9).toFixed(0);
-    document.getElementById('peak-tmin').textContent = p1 + ' nm';
-    document.getElementById('peak-tmax').textContent = p2 + ' nm';
+    document.getElementById('peak-tmin').textContent = (b / Tmin * 1e9).toFixed(0) + ' nm';
+    document.getElementById('peak-tmax').textContent = (b / Tmax * 1e9).toFixed(0) + ' nm';
   }
 
-  // ===== 格式化辐射强度 =====
-  function fmtB(v) {
-    if (v === 0) return '0';
-    const e = Math.floor(Math.log10(v));
-    const m = (v / Math.pow(10, e)).toFixed(2);
-    return m + '×10<sup>' + e + '</sup>';
+  /* ===== 检测移动端 ===== */
+  function isMobile() { return window.innerWidth <= 768; }
+
+  /* ===== 获取图表配置（移动端优化） ===== */
+  function getPlotlyConfig() {
+    return {
+      responsive: true,
+      displaylogo: false,
+      scrollZoom: true,
+      modeBarButtonsToRemove: ['sendDataToCloud'],
+      toImageButtonOptions: { format: 'png', width: 1200, height: 800, scale: 2 },
+    };
   }
 
-  // ===== 绘图 =====
+  /* ===== 公共 layout 基础 ===== */
+  function baseLayout() {
+    const mobile = isMobile();
+    return {
+      paper_bgcolor: '#0d1117',
+      plot_bgcolor:  '#0d1117',
+      font: {
+        color: '#c9d1d9',
+        family: 'Segoe UI, PingFang SC, sans-serif',
+        size: mobile ? 10 : 12,
+      },
+      margin: mobile
+        ? { l: 48, r: 12, t: 12, b: 48 }
+        : { l: 60, r: 20, t: 20, b: 60 },
+    };
+  }
+
+  /* ===== 渲染 ===== */
   function render() {
     document.getElementById('status-text').textContent = '计算中…';
-
     setTimeout(() => {
       const { temps, waves, z } = buildGrid();
-      const logZ = z.map(row => row.map(v => v > 0 ? Math.log10(v) : null));
+      const mobile  = isMobile();
+      const useLog  = yAxisMode === 'log';
+      const zData   = useLog
+        ? z.map(row => row.map(v => v > 0 ? Math.log10(v) : null))
+        : z;
+      const zTitle  = useLog ? 'log₁₀ B(λ,T)' : 'B(λ,T) [W·sr⁻¹·m⁻³]';
+      const hoverT  = useLog
+        ? 'λ=%{x:.0f}nm T=%{y:.0f}K log₁₀B=%{z:.2f}<extra></extra>'
+        : 'λ=%{x:.0f}nm T=%{y:.0f}K B=%{z:.3e}<extra></extra>';
 
-      const useLog = yAxisMode === 'log';
-      const zData  = useLog ? logZ : z;
-      const zTitle = useLog
-        ? 'log₁₀ B(λ,T)  [W·sr⁻¹·m⁻³]'
-        : 'B(λ,T)  [W·sr⁻¹·m⁻³]';
-
-      let traces = [];
-      let layout = {};
-
-      const darkLayout = {
-        paper_bgcolor: '#0d1117',
-        plot_bgcolor:  '#0d1117',
-        font: { color: '#c9d1d9', family: 'Segoe UI, PingFang SC, sans-serif', size: 12 },
-        margin: { l: 60, r: 20, t: 20, b: 60 },
-      };
+      let traces = [], layout = {};
 
       if (currentView === '3d') {
         traces = [{
           type: 'surface',
-          x: waves,
-          y: temps,
-          z: zData,
+          x: waves, y: temps, z: zData,
           colorscale: currentColorscale,
           colorbar: {
-            title: { text: zTitle, side: 'right', font: { size: 11 } },
-            tickfont: { size: 10 },
-            len: 0.7,
+            title: { text: zTitle, side: 'right', font: { size: mobile ? 9 : 11 } },
+            tickfont: { size: mobile ? 8 : 10 },
+            len: mobile ? 0.5 : 0.7,
+            thickness: mobile ? 12 : 20,
+            x: mobile ? 1.0 : 1.02,
           },
-          hovertemplate:
-            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
-            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e} W·sr⁻¹·m⁻³') +
-            '<extra></extra>',
+          hovertemplate: hoverT,
           lighting: { ambient: 0.6, diffuse: 0.8, specular: 0.3, roughness: 0.5 },
           lightposition: { x: 1000, y: 1000, z: 5000 },
         }];
         layout = {
-          ...darkLayout,
-          margin: { l: 0, r: 0, t: 30, b: 0 },
+          ...baseLayout(),
+          margin: mobile ? { l: 0, r: 0, t: 10, b: 0 } : { l: 0, r: 0, t: 20, b: 0 },
           scene: {
             xaxis: {
-              title: 'λ 波长 (nm)',
+              title: mobile ? 'λ (nm)' : 'λ 波长 (nm)',
               gridcolor: '#30363d', zerolinecolor: '#30363d',
               backgroundcolor: '#161b22', color: '#8b949e',
+              tickfont: { size: mobile ? 8 : 10 },
             },
             yaxis: {
-              title: 'T 温度 (K)',
+              title: mobile ? 'T (K)' : 'T 温度 (K)',
               gridcolor: '#30363d', zerolinecolor: '#30363d',
               backgroundcolor: '#161b22', color: '#8b949e',
+              tickfont: { size: mobile ? 8 : 10 },
             },
             zaxis: {
-              title: zTitle,
+              title: mobile ? zTitle.split(' ')[0] : zTitle,
               gridcolor: '#30363d', zerolinecolor: '#30363d',
               backgroundcolor: '#0d1117', color: '#8b949e',
+              tickfont: { size: mobile ? 8 : 10 },
             },
             bgcolor: '#0d1117',
-            camera: { eye: { x: 1.5, y: -1.8, z: 1.2 } },
+            camera: mobile
+              ? { eye: { x: 1.8, y: -1.8, z: 1.0 } }
+              : { eye: { x: 1.5, y: -1.8, z: 1.2 } },
+            aspectmode: 'auto',
           },
         };
 
       } else if (currentView === 'contour') {
         traces = [{
-          type: 'contour',
-          x: waves,
-          y: temps,
-          z: zData,
+          type: 'contour', x: waves, y: temps, z: zData,
           colorscale: currentColorscale,
-          contours: { coloring: 'heatmap', showlabels: true,
-            labelfont: { size: 9, color: '#fff' } },
-          colorbar: { title: { text: zTitle }, tickfont: { size: 10 } },
-          hovertemplate:
-            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
-            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e}') +
-            '<extra></extra>',
+          contours: {
+            coloring: 'heatmap', showlabels: !mobile,
+            labelfont: { size: 9, color: '#fff' },
+          },
+          colorbar: {
+            title: { text: zTitle, font: { size: mobile ? 9 : 11 } },
+            tickfont: { size: mobile ? 8 : 10 },
+            thickness: mobile ? 12 : 20,
+          },
+          hovertemplate: hoverT,
         }];
         layout = {
-          ...darkLayout,
-          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
-          yaxis: { title: 'T 温度 (K)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+          ...baseLayout(),
+          xaxis: {
+            title: mobile ? 'λ (nm)' : 'λ 波长 (nm)',
+            gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
+          yaxis: {
+            title: mobile ? 'T (K)' : 'T 温度 (K)',
+            gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
         };
 
       } else if (currentView === 'heatmap') {
         traces = [{
-          type: 'heatmap',
-          x: waves,
-          y: temps,
-          z: zData,
+          type: 'heatmap', x: waves, y: temps, z: zData,
           colorscale: currentColorscale,
-          colorbar: { title: { text: zTitle }, tickfont: { size: 10 } },
-          hovertemplate:
-            'λ = %{x:.0f} nm<br>T = %{y:.0f} K<br>' +
-            (useLog ? 'log₁₀B = %{z:.2f}' : 'B = %{z:.3e}') +
-            '<extra></extra>',
+          colorbar: {
+            title: { text: zTitle, font: { size: mobile ? 9 : 11 } },
+            tickfont: { size: mobile ? 8 : 10 },
+            thickness: mobile ? 12 : 20,
+          },
+          hovertemplate: hoverT,
         }];
         layout = {
-          ...darkLayout,
-          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
-          yaxis: { title: 'T 温度 (K)', gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d' },
+          ...baseLayout(),
+          xaxis: {
+            title: mobile ? 'λ (nm)' : 'λ 波长 (nm)',
+            gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
+          yaxis: {
+            title: mobile ? 'T (K)' : 'T 温度 (K)',
+            gridcolor: '#30363d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
         };
 
       } else if (currentView === 'lines') {
-        // 每条温度对应一条曲线
         const palette = [
           '#ff4500','#ff7f0e','#ffd700','#adff2f',
           '#00fa9a','#00bfff','#8a2be2','#ff69b4',
           '#ff6347','#7fffd4','#dc143c','#1e90ff',
         ];
-        traces = temps.map((T, i) => {
-          const yVals = useLog
+        traces = temps.map((T, i) => ({
+          type: 'scatter', mode: 'lines',
+          name: T.toFixed(0) + ' K',
+          x: waves,
+          y: useLog
             ? waves.map(lam => { const v = planck(lam, T); return v > 0 ? Math.log10(v) : null; })
-            : waves.map(lam => planck(lam, T));
-          return {
-            type: 'scatter',
-            mode: 'lines',
-            name: T.toFixed(0) + ' K',
-            x: waves,
-            y: yVals,
-            line: {
-              color: palette[i % palette.length],
-              width: 2,
-            },
-            hovertemplate: 'T = ' + T.toFixed(0) + ' K<br>λ = %{x:.0f} nm<br>' +
-              (useLog ? 'log₁₀B = %{y:.2f}' : 'B = %{y:.3e} W·sr⁻¹·m⁻³') +
-              '<extra></extra>',
-          };
-        });
+            : waves.map(lam => planck(lam, T)),
+          line: { color: palette[i % palette.length], width: mobile ? 1.5 : 2 },
+          hovertemplate:
+            'T=' + T.toFixed(0) + 'K λ=%{x:.0f}nm ' +
+            (useLog ? 'log₁₀B=%{y:.2f}' : 'B=%{y:.3e}') +
+            '<extra></extra>',
+        }));
         layout = {
-          ...darkLayout,
-          xaxis: { title: 'λ 波长 (nm)', gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d' },
-          yaxis: { title: zTitle, gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d' },
+          ...baseLayout(),
+          xaxis: {
+            title: mobile ? 'λ (nm)' : 'λ 波长 (nm)',
+            gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
+          yaxis: {
+            title: zTitle,
+            gridcolor: '#21262d', color: '#8b949e', zerolinecolor: '#30363d',
+            tickfont: { size: mobile ? 9 : 11 },
+          },
           legend: {
             bgcolor: '#161b22', bordercolor: '#30363d', borderwidth: 1,
-            font: { color: '#c9d1d9', size: 10 },
+            font: { color: '#c9d1d9', size: mobile ? 9 : 11 },
+            orientation: mobile ? 'h' : 'v',
+            x: mobile ? 0 : 1.02,
+            y: mobile ? -0.25 : 1,
+            xanchor: mobile ? 'left' : 'left',
           },
           hovermode: 'x unified',
         };
       }
 
-      Plotly.react('plot', traces, layout, {
-        responsive: true,
-        displaylogo: false,
-        modeBarButtonsToRemove: ['sendDataToCloud'],
-        toImageButtonOptions: { format: 'png', width: 1600, height: 900, scale: 2 },
-      });
-
+      Plotly.react('plot', traces, layout, getPlotlyConfig());
       updatePeakInfo();
       document.getElementById('status-text').textContent =
         `已渲染 ${temps.length} × ${waves.length} 网格点`;
     }, 10);
   }
 
-  // ===== 控件事件绑定 =====
-
-  // 滑块实时更新标签
-  function bindSlider(id, labelId, suffix, decimals) {
+  /* ===== 滑块绑定 ===== */
+  function bindSlider(id, labelId, suffix) {
     const el = document.getElementById(id);
     const lb = document.getElementById(labelId);
     el.addEventListener('input', () => {
-      lb.textContent = (+el.value).toFixed(decimals) + ' ' + suffix;
+      lb.textContent = (+el.value).toFixed(0) + (suffix ? ' ' + suffix : '');
     });
   }
-  bindSlider('tmin',  'tmin-val',  'K',  0);
-  bindSlider('tmax',  'tmax-val',  'K',  0);
-  bindSlider('tstep', 'tstep-val', '',   0);
-  bindSlider('lmin',  'lmin-val',  'nm', 0);
-  bindSlider('lmax',  'lmax-val',  'nm', 0);
-  bindSlider('lstep', 'lstep-val', '',   0);
+  bindSlider('tmin',  'tmin-val',  'K');
+  bindSlider('tmax',  'tmax-val',  'K');
+  bindSlider('tstep', 'tstep-val', '');
+  bindSlider('lmin',  'lmin-val',  'nm');
+  bindSlider('lmax',  'lmax-val',  'nm');
+  bindSlider('lstep', 'lstep-val', '');
 
-  // 更新按钮
-  document.getElementById('btn-update').addEventListener('click', render);
+  /* ===== 更新按钮 ===== */
+  document.getElementById('btn-update').addEventListener('click', () => {
+    closePanel();
+    render();
+  });
 
-  // 纵轴模式
+  /* ===== 纵轴模式 ===== */
   document.querySelectorAll('input[name="yaxis"]').forEach(radio => {
     radio.addEventListener('change', e => {
       yAxisMode = e.target.value;
@@ -727,7 +776,7 @@
     });
   });
 
-  // 色彩方案
+  /* ===== 色彩方案 ===== */
   document.querySelectorAll('.cs-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.cs-btn').forEach(b => b.classList.remove('active'));
@@ -736,7 +785,7 @@
     });
   });
 
-  // 视图切换
+  /* ===== 视图切换 ===== */
   document.querySelectorAll('.view-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
@@ -746,12 +795,44 @@
     });
   });
 
-  // 窗口大小变化时重绘
+  /* ===== 移动端抽屉面板 ===== */
+  const aside   = document.getElementById('aside');
+  const overlay = document.getElementById('overlay');
+  const toggle  = document.getElementById('panel-toggle');
+
+  function openPanel() {
+    aside.classList.add('open');
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePanel() {
+    aside.classList.remove('open');
+    overlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  toggle.addEventListener('click', () => {
+    aside.classList.contains('open') ? closePanel() : openPanel();
+  });
+  overlay.addEventListener('click', closePanel);
+
+  /* 抽屉拖拽关闭（触控） */
+  let touchStartY = 0;
+  aside.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+  aside.addEventListener('touchmove', e => {
+    const dy = e.touches[0].clientY - touchStartY;
+    if (dy > 60) closePanel();
+  }, { passive: true });
+
+  /* ===== 窗口 resize ===== */
+  let resizeTimer;
   window.addEventListener('resize', () => {
-    Plotly.Plots.resize('plot');
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      Plotly.Plots.resize('plot');
+    }, 150);
   });
 
-  // ===== 初始渲染 =====
+  /* ===== 初始渲染 ===== */
   render();
 </script>
 </body>
